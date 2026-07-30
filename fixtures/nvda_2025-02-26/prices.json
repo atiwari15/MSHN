@@ -1,0 +1,16 @@
+{
+  "ticker": "NVDA",
+  "series_kind": "daily_close",
+  "prices_are_approximate": true,
+  "series": [
+    { "date": "2025-02-25", "close": 130.28 },
+    { "date": "2025-02-26", "close": 131.28 },
+    { "date": "2025-02-27", "close": 120.15 }
+  ],
+  "expected_trigger": {
+    "on_date": "2025-02-27",
+    "baseline": "2025-02-26 close",
+    "pct_change": -0.085,
+    "should_fire_at_threshold": 0.03
+  }
+}

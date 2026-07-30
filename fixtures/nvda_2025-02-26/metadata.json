@@ -1,0 +1,56 @@
+{
+  "fixture_id": "nvda_2025-02-26",
+  "description": "NVIDIA Q4 FY2025 earnings: a headline beat on every number, yet the stock fell ~8.5% the next session. The 'why' is not in the headline figures - it is in guidance, margins, and sky-high expectations. This is the trap case for a naive explainer.",
+
+  "ticker": "NVDA",
+  "company": "NVIDIA Corporation",
+  "cik": "1045810",
+  "cik_padded": "0001045810",
+
+  "event": {
+    "earnings_release_datetime": "2025-02-26T16:20:00-05:00",
+    "release_timing": "after market close (AMC)",
+    "move_trading_day": "2025-02-27"
+  },
+
+  "trigger": {
+    "type": "percent_threshold",
+    "baseline_kind": "prior_close",
+    "pct_change_close": -0.085,
+    "verified_fact": "Close-to-close decline of ~8.5% on 2025-02-27, the session after the release.",
+    "note": "Absolute price levels in prices.json are approximate/reconstructed and flagged as such. The verified quantity is the ~-8.5% close-to-close move, which is what the threshold trigger keys on. Replace approximate levels with real Finnhub data when wiring the live client."
+  },
+
+  "filing": {
+    "form": "8-K",
+    "item": "2.02 Results of Operations and Financial Condition",
+    "filed_date": "2025-02-26",
+    "accession": "0001045810-25-000021",
+    "accession_nodashes": "000104581025000021",
+    "index_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000021/index.json",
+    "documents": {
+      "body_8k": "nvda-20250226.htm",
+      "ex99_1_press_release": "q4fy25pr.htm",
+      "ex99_2_cfo_commentary": "DISCOVER_FROM_INDEX"
+    },
+    "note": "The 99.2 CFO-commentary filename is intentionally not hardcoded. fetch_filing.py resolves exhibit filenames from index.json rather than guessing - the same rule the live EDGAR client must follow."
+  },
+
+  "ground_truth": {
+    "catalyst_present": true,
+    "one_line": "Record revenue and a clean EPS beat, but the stock fell on margin/guidance concerns and expectations that were already priced for perfection.",
+    "key_facts_from_filing": [
+      "Record quarterly revenue of $39.3B, up 78% YoY (beat).",
+      "Record data center revenue of $35.6B, up 93% YoY.",
+      "GAAP and non-GAAP EPS of $0.89 (beat consensus).",
+      "The disappointment lived in forward gross-margin guidance and the market's very high going-in expectations, not the reported quarter."
+    ],
+    "expected_citation": "Exhibit 99.1 press release and Exhibit 99.2 CFO commentary (guidance/margin detail).",
+    "naive_failure_mode": "A weak system reads 'record revenue, big beat' and either says the move should have been positive or invents a reason. Correct behavior surfaces the guidance/margin nuance - or, if that detail isn't retrievable, honestly flags that the headline beat doesn't by itself explain the drop."
+  },
+
+  "provenance": {
+    "assembled": "2026-07-30",
+    "sources": "Event and figures verified against contemporaneous financial press and the SEC filing itself; price levels approximate."
+  }
+}

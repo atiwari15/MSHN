@@ -1,0 +1,14 @@
+.env
+.claude/settings.local.json
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# vector store data (reproducible from corpus/embed pipeline)
+vector_store/
+chroma_data/
+qdrant_data/
+
+# downloaded filing documents (reproducible via fetch_filing.py / edgar client)
+fixtures/**/*.htm
