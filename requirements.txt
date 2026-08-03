@@ -3,3 +3,5 @@ anthropic
 beautifulsoup4
 lxml
 python-dotenv
+streamlit
+pandas
