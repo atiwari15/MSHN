@@ -104,9 +104,16 @@ def _split_text(text: str, size: int = CHUNK_SIZE_CHARS, overlap: int = CHUNK_OV
 
 
 def load_fixture_chunks(fixture_dir: str | pathlib.Path) -> list[Chunk]:
-    """Load a fixture folder's filing documents and split them into chunks."""
+    """Load a fixture folder's filing documents and split them into chunks.
+
+    A fixture with `"filing": null` genuinely has no explanatory filing
+    (the honesty-fallback stress test) and yields no chunks - this is
+    distinct from a filing whose exhibit filename hasn't been resolved yet.
+    """
     fixture_dir = pathlib.Path(fixture_dir)
     meta = json.loads((fixture_dir / "metadata.json").read_text())
+    if not meta.get("filing"):
+        return []
     fixture_id = meta["fixture_id"]
     filed_date = meta["filing"]["filed_date"]
 

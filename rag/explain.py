@@ -57,7 +57,9 @@ def explain(trigger: TriggerEvent, chunks: list[dict], client: Anthropic | None 
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
-    text = response.content[0].text.strip()
+    # Responses may lead with non-text blocks (e.g. thinking), so take the
+    # first block that actually carries text rather than assuming index 0.
+    text = next(block.text for block in response.content if block.type == "text").strip()
 
     catalyst_found = NO_CATALYST_MESSAGE.lower() not in text.lower()
     citations = sorted({c["metadata"]["doc_role"] for c in chunks}) if catalyst_found else []

@@ -1,0 +1,43 @@
+{
+  "fixture_id": "coin_2026-06-05",
+  "description": "Coinbase fell ~7.1% close-to-close on 2026-06-05, capping a bruising crypto week - but the move was driven entirely by broad crypto-market conditions (Bitcoin crashing below $60,000, a wave of forced liquidations, and a 13th straight day of Bitcoin ETF outflows), not by any Coinbase-specific announcement. SEC EDGAR confirms Coinbase filed no 8-K in the surrounding window. This is the honesty-fallback stress test: the correct system behavior is to report 'no clear catalyst found' rather than inventing or misattributing a company-specific reason.",
+
+  "ticker": "COIN",
+  "company": "Coinbase Global, Inc.",
+  "cik": "1679788",
+  "cik_padded": "0001679788",
+
+  "event": {
+    "move_trading_day": "2026-06-05",
+    "note": "Sell-off began earlier in the week after Strategy (MicroStrategy) disclosed its first Bitcoin sale since 2022, triggering cascading forced liquidations (~$594M in 24h) and accelerating Bitcoin ETF outflows; a stronger-than-expected May jobs report added macro pressure on risk assets. None of this is Coinbase-company-specific."
+  },
+
+  "trigger": {
+    "type": "percent_threshold",
+    "baseline_kind": "prior_close",
+    "pct_change_close": -0.0714,
+    "verified_fact": "Close-to-close decline of ~7.1% on 2026-06-05, from $164.13 (2026-06-04 close) to $152.40 (2026-06-05 close).",
+    "note": "Real daily close prices sourced from Yahoo Finance. Comfortably trips a +/-3% move trigger."
+  },
+
+  "filing": null,
+
+  "no_catalyst_verification": {
+    "method": "Checked SEC EDGAR submissions history (CIK 0001679788, https://data.sec.gov/submissions/CIK0001679788.json) for the window 2026-05-15 to 2026-06-15.",
+    "result": "No 8-K filed in this window. Only routine Form 4 (insider transactions), Form 144 (proposed sales of restricted securities), and one Schedule 13G/A (passive ownership disclosure) appear - none are material-event disclosures capable of explaining a price move.",
+    "checked_on": "2026-08-06"
+  },
+
+  "ground_truth": {
+    "catalyst_present": false,
+    "one_line": "COIN fell ~7.1% purely on broad crypto-market conditions (Bitcoin crash, forced liquidations, ETF outflows, macro rate pressure) - not any Coinbase-specific event. Correct behavior is to report 'no clear catalyst found'.",
+    "key_facts_from_filing": [],
+    "expected_citation": "none - no company filing explains this move",
+    "naive_failure_mode": "A weak system might retrieve an unrelated, stale Coinbase filing (e.g. a routine Form 4) or hallucinate a plausible-sounding company-specific reason for the drop. Correct behavior is to retrieve nothing relevant for this ticker/window and honestly report no catalyst."
+  },
+
+  "provenance": {
+    "assembled": "2026-08-06",
+    "sources": "Price move and cause verified against contemporaneous financial press (TIKR, StockStory/FinancialContent) and cross-checked directly against SEC EDGAR's filing history for the ticker; daily closes sourced from Yahoo Finance."
+  }
+}
