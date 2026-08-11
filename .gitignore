@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 venv/
 
+# on-disk EDGAR response cache (reproducible; filings are immutable)
+.cache/
+
 # vector store data (reproducible from corpus/embed pipeline)
 vector_store/
 chroma_data/

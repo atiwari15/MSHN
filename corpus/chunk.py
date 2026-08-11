@@ -33,24 +33,13 @@ class Chunk:
     doc_name: str
     doc_role: str
     chunk_index: int
-    fixture_id: str
+    source_id: str  # fixture_id offline, accession number for live filings
     filed_date: str
 
     @property
     def id(self) -> str:
-        return f"{self.fixture_id}:{self.doc_name}:{self.chunk_index}"
-
-    def to_metadata(self) -> dict:
-        return {
-            "doc_name": self.doc_name,
-            "doc_role": self.doc_role,
-            "chunk_index": self.chunk_index,
-            "fixture_id": self.fixture_id,
-            "filed_date": self.filed_date,
-            # Chroma's range filters ($lte etc.) require numeric operands,
-            # so ISO dates get a parallel int form (YYYYMMDD) for filtering.
-            "filed_date_int": int(self.filed_date.replace("-", "")),
-        }
+        """Stable across re-ingestion, so upserts are idempotent."""
+        return f"{self.source_id}:{self.doc_name}:{self.chunk_index}"
 
 
 def _resolve_doc_roles(fixture_dir: pathlib.Path, meta: dict) -> dict[str, str]:
@@ -103,6 +92,32 @@ def _split_text(text: str, size: int = CHUNK_SIZE_CHARS, overlap: int = CHUNK_OV
     return pieces
 
 
+def chunk_document(
+    html: bytes,
+    doc_name: str,
+    doc_role: str,
+    source_id: str,
+    filed_date: str,
+) -> list[Chunk]:
+    """Split one filing document's HTML into chunks.
+
+    Shared by the offline fixture loader and the live ingestion path, so
+    both produce identically-shaped chunks from identical parsing rules.
+    """
+    text = _html_to_text(html)
+    return [
+        Chunk(
+            text=piece,
+            doc_name=doc_name,
+            doc_role=doc_role,
+            chunk_index=i,
+            source_id=source_id,
+            filed_date=filed_date,
+        )
+        for i, piece in enumerate(_split_text(text))
+    ]
+
+
 def load_fixture_chunks(fixture_dir: str | pathlib.Path) -> list[Chunk]:
     """Load a fixture folder's filing documents and split them into chunks.
 
@@ -124,16 +139,7 @@ def load_fixture_chunks(fixture_dir: str | pathlib.Path) -> list[Chunk]:
         doc_path = fixture_dir / doc_name
         if not doc_path.exists():
             continue
-        text = _html_to_text(doc_path.read_bytes())
-        for i, piece in enumerate(_split_text(text)):
-            chunks.append(
-                Chunk(
-                    text=piece,
-                    doc_name=doc_name,
-                    doc_role=role,
-                    chunk_index=i,
-                    fixture_id=fixture_id,
-                    filed_date=filed_date,
-                )
-            )
+        chunks.extend(
+            chunk_document(doc_path.read_bytes(), doc_name, role, fixture_id, filed_date)
+        )
     return chunks

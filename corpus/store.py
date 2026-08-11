@@ -60,7 +60,7 @@ def add_chunks(conn: psycopg.Connection, chunks: list[Chunk], ticker: str) -> No
                 ON CONFLICT (source_id, doc_name) DO UPDATE SET ticker = EXCLUDED.ticker
                 RETURNING id
                 """,
-                (ticker, chunk.doc_name, chunk.doc_role, chunk.filed_date, chunk.fixture_id),
+                (ticker, chunk.doc_name, chunk.doc_role, chunk.filed_date, chunk.source_id),
             )
             filing_id = cur.fetchone()[0]
 
@@ -72,7 +72,10 @@ def add_chunks(conn: psycopg.Connection, chunks: list[Chunk], ticker: str) -> No
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (chunk_key) DO UPDATE
-                    SET text = EXCLUDED.text, embedding = EXCLUDED.embedding
+                    SET text = EXCLUDED.text,
+                        embedding = EXCLUDED.embedding,
+                        doc_role = EXCLUDED.doc_role,
+                        filed_date = EXCLUDED.filed_date
                 """,
                 (
                     filing_id,
