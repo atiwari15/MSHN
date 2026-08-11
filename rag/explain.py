@@ -44,7 +44,15 @@ def explain(trigger: TriggerEvent, chunks: list[dict], client: Anthropic | None 
     honest 'no clear catalyst found' fallback when there's nothing to cite.
     """
     if not chunks:
-        return {"catalyst_found": False, "explanation": NO_CATALYST_MESSAGE, "citations": []}
+        # No LLM call at all - the honest answer is free.
+        return {
+            "catalyst_found": False,
+            "explanation": NO_CATALYST_MESSAGE,
+            "citations": [],
+            "model": None,
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
 
     client = client or Anthropic()
     direction = "fell" if trigger.pct_change < 0 else "rose"
@@ -66,4 +74,12 @@ def explain(trigger: TriggerEvent, chunks: list[dict], client: Anthropic | None 
     catalyst_found = NO_CATALYST_MESSAGE.lower() not in text.lower()
     citations = sorted({c["metadata"]["doc_role"] for c in chunks}) if catalyst_found else []
 
-    return {"catalyst_found": catalyst_found, "explanation": text, "citations": citations}
+    return {
+        "catalyst_found": catalyst_found,
+        "explanation": text,
+        "citations": citations,
+        # Reported so the caller can persist per-explanation cost.
+        "model": DEFAULT_MODEL,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+    }
