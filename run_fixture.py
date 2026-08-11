@@ -14,7 +14,7 @@ import sys
 from dotenv import load_dotenv
 
 from corpus.chunk import load_fixture_chunks
-from corpus.store import add_chunks, get_client, get_collection
+from corpus.store import add_chunks, count, get_client, get_collection
 from rag.explain import explain
 from rag.retrieve import TriggerEvent, retrieve
 
@@ -44,7 +44,7 @@ def run(fixture_id: str) -> None:
     client = get_client()
     collection = get_collection(client)
     add_chunks(collection, chunks, ticker=trigger.ticker)
-    print(f"  {len(chunks)} chunks indexed (corpus now has {collection.count()} total).")
+    print(f"  {len(chunks)} chunks indexed (corpus now has {count(collection)} total).")
     print()
 
     print("Retrieving...")

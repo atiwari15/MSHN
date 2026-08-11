@@ -56,15 +56,31 @@ def _parse_json_response(text: str) -> dict:
     return json.loads(text)
 
 
+# Judges reason over ~10k chars of filing text before answering. The budget
+# has to cover extended thinking AND the JSON verdict - too low and the whole
+# allowance is spent thinking, leaving a response with no text block at all.
+JUDGE_MAX_TOKENS = 4000
+
+
 def _first_text(response) -> str:
     """Responses may lead with non-text blocks (e.g. thinking), so take the
     first block that actually carries text rather than assuming index 0."""
-    return next(block.text for block in response.content if block.type == "text")
+    text = next((block.text for block in response.content if block.type == "text"), None)
+    if text is None:
+        kinds = [block.type for block in response.content]
+        raise RuntimeError(
+            f"judge returned no text block (stop_reason={response.stop_reason}, blocks={kinds}); "
+            "raise JUDGE_MAX_TOKENS if this is a max_tokens truncation"
+        )
+    return text
 
 
 def _judge(client: Anthropic, system: str, user: str) -> dict:
     response = client.messages.create(
-        model=DEFAULT_MODEL, max_tokens=1000, system=system, messages=[{"role": "user", "content": user}]
+        model=DEFAULT_MODEL,
+        max_tokens=JUDGE_MAX_TOKENS,
+        system=system,
+        messages=[{"role": "user", "content": user}],
     )
     return _parse_json_response(_first_text(response))
 

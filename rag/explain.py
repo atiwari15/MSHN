@@ -9,7 +9,9 @@ from anthropic import Anthropic
 from rag.retrieve import TriggerEvent
 
 DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
-MAX_TOKENS = 700
+# Must cover extended thinking as well as the explanation itself; if the
+# budget runs out mid-thinking the response carries no text block at all.
+MAX_TOKENS = 4000
 
 NO_CATALYST_MESSAGE = "No clear catalyst found."
 

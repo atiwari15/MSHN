@@ -1,4 +1,6 @@
-chromadb
+chromadb            # retained for its bundled local ONNX embedding model
+psycopg[binary]
+pgvector
 anthropic
 beautifulsoup4
 lxml
