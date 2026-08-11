@@ -16,8 +16,10 @@ already carries in its metadata.json:
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
+import statistics
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -75,7 +77,15 @@ def _first_text(response) -> str:
     return text
 
 
-def _judge(client: Anthropic, system: str, user: str) -> dict:
+# An LLM judge is not deterministic, and `temperature` is deprecated for
+# this model, so a single call cannot be pinned. Judging each explanation
+# several times and reporting mean +/- stdev is what makes the score
+# meaningful: without it, run-to-run noise is indistinguishable from a real
+# change in system quality.
+JUDGE_REPEATS = 3
+
+
+def _judge_once(client: Anthropic, system: str, user: str) -> dict:
     response = client.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=JUDGE_MAX_TOKENS,
@@ -85,24 +95,62 @@ def _judge(client: Anthropic, system: str, user: str) -> dict:
     return _parse_json_response(_first_text(response))
 
 
-def _score_faithfulness(client: Anthropic, explanation: str, chunks: list[dict]) -> dict | None:
+def _judge(
+    client: Anthropic,
+    system: str,
+    user: str,
+    score_fn,
+    repeats: int = JUDGE_REPEATS,
+) -> dict:
+    """Judge `repeats` times and summarize the spread alongside the mean."""
+    samples = [_judge_once(client, system, user) for _ in range(repeats)]
+    scores = [score_fn(s) for s in samples]
+    return {
+        "score": statistics.mean(scores),
+        "stdev": statistics.stdev(scores) if len(scores) > 1 else 0.0,
+        "min": min(scores),
+        "max": max(scores),
+        "repeats": repeats,
+        "samples": samples,
+    }
+
+
+def _ratio(numerator_key: str, denominator_key: str):
+    def score(sample: dict) -> float:
+        total = sample[denominator_key]
+        return sample[numerator_key] / total if total else 1.0
+
+    return score
+
+
+def _score_faithfulness(
+    client: Anthropic, explanation: str, chunks: list[dict], repeats: int = JUDGE_REPEATS
+) -> dict | None:
     if not chunks:
         return None
     context = "\n\n---\n\n".join(c["text"] for c in chunks)
-    result = _judge(client, FAITHFULNESS_JUDGE_SYSTEM, f"Explanation:\n{explanation}\n\nSource excerpts:\n{context}")
-    total, supported = result["total_claims"], result["supported_claims"]
-    result["score"] = supported / total if total else 1.0
-    return result
+    return _judge(
+        client,
+        FAITHFULNESS_JUDGE_SYSTEM,
+        f"Explanation:\n{explanation}\n\nSource excerpts:\n{context}",
+        _ratio("supported_claims", "total_claims"),
+        repeats,
+    )
 
 
-def _score_correctness(client: Anthropic, explanation: str, key_facts: list[str]) -> dict | None:
+def _score_correctness(
+    client: Anthropic, explanation: str, key_facts: list[str], repeats: int = JUDGE_REPEATS
+) -> dict | None:
     if not key_facts:
         return None
     facts_block = "\n".join(f"- {f}" for f in key_facts)
-    result = _judge(client, CORRECTNESS_JUDGE_SYSTEM, f"Explanation:\n{explanation}\n\nKnown key facts:\n{facts_block}")
-    total, covered = result["total_facts"], result["covered_facts"]
-    result["score"] = covered / total if total else 1.0
-    return result
+    return _judge(
+        client,
+        CORRECTNESS_JUDGE_SYSTEM,
+        f"Explanation:\n{explanation}\n\nKnown key facts:\n{facts_block}",
+        _ratio("covered_facts", "total_facts"),
+        repeats,
+    )
 
 
 def _score_retrieval(results: list[dict], meta: dict) -> dict | None:
@@ -123,7 +171,9 @@ def list_fixture_ids() -> list[str]:
     return sorted(p.name for p in FIXTURES_DIR.iterdir() if (p / "metadata.json").exists())
 
 
-def run_fixture(client: Anthropic, collection, fixture_id: str) -> dict:
+def run_fixture(
+    client: Anthropic, collection, fixture_id: str, judge_repeats: int = JUDGE_REPEATS
+) -> dict:
     fixture_dir = FIXTURES_DIR / fixture_id
     meta = json.loads((fixture_dir / "metadata.json").read_text())
 
@@ -143,8 +193,10 @@ def run_fixture(client: Anthropic, collection, fixture_id: str) -> dict:
 
     faithfulness = correctness = None
     if outcome["catalyst_found"]:
-        faithfulness = _score_faithfulness(client, outcome["explanation"], results)
-        correctness = _score_correctness(client, outcome["explanation"], gt.get("key_facts_from_filing", []))
+        faithfulness = _score_faithfulness(client, outcome["explanation"], results, judge_repeats)
+        correctness = _score_correctness(
+            client, outcome["explanation"], gt.get("key_facts_from_filing", []), judge_repeats
+        )
 
     return {
         "fixture_id": fixture_id,
@@ -156,6 +208,47 @@ def run_fixture(client: Anthropic, collection, fixture_id: str) -> dict:
         "retrieval": _score_retrieval(results, meta),
         "faithfulness": faithfulness,
         "correctness": correctness,
+    }
+
+
+def evaluate_fixture(
+    client: Anthropic,
+    collection,
+    fixture_id: str,
+    runs: int = 1,
+    judge_repeats: int = JUDGE_REPEATS,
+) -> dict:
+    """Run the whole pipeline `runs` times and aggregate.
+
+    Generation is non-deterministic, so each run can produce a differently
+    worded explanation with a different number of claims. That is the
+    dominant source of score movement - larger than judge noise on a fixed
+    explanation - so a trustworthy number has to repeat generation, not just
+    judging.
+    """
+    runs_out = [run_fixture(client, collection, fixture_id, judge_repeats) for _ in range(runs)]
+    latest = runs_out[-1]
+
+    def _agg(metric: str) -> dict | None:
+        scores = [r[metric]["score"] for r in runs_out if r[metric]]
+        if not scores:
+            return None
+        return {
+            "score": statistics.mean(scores),
+            "stdev": statistics.stdev(scores) if len(scores) > 1 else 0.0,
+            "min": min(scores),
+            "max": max(scores),
+            "runs": len(scores),
+            "judge_repeats": judge_repeats,
+        }
+
+    return {
+        **latest,
+        "runs": runs,
+        "honesty_correct": all(r["honesty_correct"] for r in runs_out),
+        "honesty_rate": statistics.mean([r["honesty_correct"] for r in runs_out]),
+        "faithfulness": _agg("faithfulness"),
+        "correctness": _agg("correctness"),
     }
 
 
@@ -180,12 +273,41 @@ def summarize(results: list[dict]) -> dict:
     }
 
 
+def _format_judged(label: str, scored: dict) -> str:
+    spread = f" +/-{scored['stdev']:.2f} (min {scored['min']:.2f}, max {scored['max']:.2f})"
+    basis = f"{scored['runs']} run(s) x {scored['judge_repeats']} judge repeats"
+    return f"  {label}: {scored['score']:.2f}{spread} over {basis}"
+
+
 def main() -> None:
     load_dotenv()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--judge-repeats",
+        type=int,
+        default=JUDGE_REPEATS,
+        help=f"how many times to run each LLM judge (default {JUDGE_REPEATS})",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="how many times to run the whole pipeline per fixture (default 1). "
+        "Generation variance dominates judge variance, so raise this for a "
+        "trustworthy number.",
+    )
+    parser.add_argument("--json", type=str, help="also write full results to this path")
+    args = parser.parse_args()
+
     client = Anthropic()
     collection = get_collection(get_client())
 
-    results = [run_fixture(client, collection, fid) for fid in list_fixture_ids()]
+    results = [
+        evaluate_fixture(
+            client, collection, fid, runs=args.runs, judge_repeats=args.judge_repeats
+        )
+        for fid in list_fixture_ids()
+    ]
 
     print("=== Per-fixture results ===")
     for r in results:
@@ -197,11 +319,9 @@ def main() -> None:
         if r["retrieval"]:
             print(f"  retrieval recall: {r['retrieval']['recall']:.2f}  {r['retrieval']['retrieved_roles']}")
         if r["faithfulness"]:
-            f = r["faithfulness"]
-            print(f"  faithfulness: {f['score']:.2f}  ({f['supported_claims']}/{f['total_claims']} claims supported)")
+            print(_format_judged("faithfulness", r["faithfulness"]))
         if r["correctness"]:
-            c = r["correctness"]
-            print(f"  correctness: {c['score']:.2f}  ({c['covered_facts']}/{c['total_facts']} key facts covered)")
+            print(_format_judged("correctness", r["correctness"]))
 
     summary = summarize(results)
     print("\n=== Summary ===")
@@ -215,6 +335,12 @@ def main() -> None:
     ]:
         if summary[key] is not None:
             print(f"{label}: {summary[key]:.2f}")
+
+    if args.json:
+        pathlib.Path(args.json).write_text(
+            json.dumps({"summary": summary, "fixtures": results}, indent=2, default=str)
+        )
+        print(f"\nFull results written to {args.json}")
 
 
 if __name__ == "__main__":
