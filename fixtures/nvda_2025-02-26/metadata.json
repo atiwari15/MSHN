@@ -38,13 +38,23 @@
 
   "ground_truth": {
     "catalyst_present": true,
-    "one_line": "Record revenue and a clean EPS beat, but the stock fell on margin/guidance concerns and expectations that were already priced for perfection.",
+    "one_line": "Record revenue and a clean EPS beat, but the stock fell on margin/guidance concerns and expectations that were already priced for perfection. The filing-grounded half of this is the margin and guidance detail; the expectations half is market context (see market_context).",
     "key_facts_from_filing": [
-      "Record quarterly revenue of $39.3B, up 78% YoY (beat).",
+      "Record quarterly revenue of $39.3B, up 78% YoY.",
       "Record data center revenue of $35.6B, up 93% YoY.",
-      "GAAP and non-GAAP EPS of $0.89 (beat consensus).",
-      "The disappointment lived in forward gross-margin guidance and the market's very high going-in expectations, not the reported quarter."
+      "GAAP and non-GAAP EPS of $0.89.",
+      "Q4 gross margin declined year over year: GAAP 73.0% versus 76.0%.",
+      "The Q1 FY2026 outlook guides GAAP gross margin lower still, to 70.6% - forward margin compression."
     ],
+    "key_facts_note": "Every entry above is verifiably present in the filing documents themselves. Market context that is true but NOT in the filing lives in `market_context` below, and is deliberately excluded from the correctness score: an explanation grounded only in the filing cannot state it, so scoring against it would penalize faithful behavior and reward confabulation.",
+
+    "market_context": [
+      "Revenue and EPS beat sell-side consensus estimates.",
+      "Going-in expectations were extremely high - the stock was priced for perfection.",
+      "Broader AI-trade anxiety weighed on sentiment that session."
+    ],
+    "market_context_note": "Requires analyst estimates and market commentary, which no SEC filing contains. The string 'consensus' appears zero times in either exhibit. A correct, faithful explanation is not expected to assert any of these from the filing alone.",
+
     "expected_citation": "Exhibit 99.1 press release and Exhibit 99.2 CFO commentary (guidance/margin detail).",
     "naive_failure_mode": "A weak system reads 'record revenue, big beat' and either says the move should have been positive or invents a reason. Correct behavior surfaces the guidance/margin nuance - or, if that detail isn't retrievable, honestly flags that the headline beat doesn't by itself explain the drop."
   },

@@ -32,19 +32,34 @@ from rag.retrieve import TriggerEvent, retrieve
 FIXTURES_DIR = pathlib.Path(__file__).parent.parent / "fixtures"
 RETRIEVAL_TOP_K = 6
 
-FAITHFULNESS_JUDGE_SYSTEM = """You are a strict fact-checker. Given a generated explanation \
-and the source excerpts it was supposed to be grounded in, break the explanation into its \
-individual factual claims and determine whether each is directly supported by the excerpts.
+FAITHFULNESS_JUDGE_SYSTEM = """You are a strict fact-checker evaluating an explanation of why \
+a stock moved, which was supposed to be grounded in the given SEC filing excerpts.
+
+Break the explanation into individual claims and classify each one:
+
+- FACT: a verifiable assertion about what the filing says (figures, dates, statements
+  attributed to the company, guidance). A FACT must be directly supported by the excerpts.
+- INFERENCE: an interpretive or causal statement about why the market reacted
+  ("the drop reflects margin concerns", "investors focused on guidance"). A filing never
+  states why a stock moved, so an INFERENCE cannot be literally present in the excerpts.
+  Judge it as GROUNDED when it follows from facts that ARE in the excerpts and is
+  appropriately hedged; judge it UNGROUNDED when it asserts outside information (analyst
+  consensus, prior expectations, other companies, market events not in the excerpts) or
+  draws a conclusion the excerpts do not support.
+
+Treat any appeal to analyst estimates, consensus, or "beating expectations" as UNGROUNDED
+unless those words appear in the excerpts themselves.
 
 Respond with ONLY a JSON object, no other text, in this exact shape:
-{"total_claims": <int>, "supported_claims": <int>, "unsupported": ["<claim text>", ...]}"""
+{"facts": {"total": <int>, "supported": <int>, "unsupported": ["<claim>", ...]},
+ "inferences": {"total": <int>, "grounded": <int>, "ungrounded": ["<claim>", ...]}}"""
 
 CORRECTNESS_JUDGE_SYSTEM = """You are checking a generated explanation against a list of known \
 key facts about what actually happened. For each key fact, determine whether the explanation \
 reflects it in substance (wording can differ).
 
 Respond with ONLY a JSON object, no other text, in this exact shape:
-{"total_facts": <int>, "covered_facts": <int>, "missing": ["<fact text>", ...]}"""
+{"coverage": {"total": <int>, "covered": <int>, "missing": ["<fact text>", ...]}}"""
 
 
 def _parse_json_response(text: str) -> dict:
@@ -95,46 +110,66 @@ def _judge_once(client: Anthropic, system: str, user: str) -> dict:
     return _parse_json_response(_first_text(response))
 
 
-def _judge(
-    client: Anthropic,
-    system: str,
-    user: str,
-    score_fn,
-    repeats: int = JUDGE_REPEATS,
-) -> dict:
-    """Judge `repeats` times and summarize the spread alongside the mean."""
-    samples = [_judge_once(client, system, user) for _ in range(repeats)]
+def _judge_samples(client: Anthropic, system: str, user: str, repeats: int) -> list[dict]:
+    return [_judge_once(client, system, user) for _ in range(repeats)]
+
+
+def _summarize(samples: list[dict], score_fn) -> dict:
+    """Mean and spread of one metric derived from a set of judge samples."""
     scores = [score_fn(s) for s in samples]
     return {
         "score": statistics.mean(scores),
         "stdev": statistics.stdev(scores) if len(scores) > 1 else 0.0,
         "min": min(scores),
         "max": max(scores),
-        "repeats": repeats,
+        "repeats": len(scores),
         "samples": samples,
     }
 
 
-def _ratio(numerator_key: str, denominator_key: str):
+def _ratio(section: str, numerator: str):
+    """Score a section of the judge's verdict, e.g. facts supported/total.
+
+    A section with no claims scores 1.0 - an explanation that makes no
+    unsupported factual claims because it made none at all is not unfaithful.
+    """
+
+    def _count(value) -> int:
+        # The judge is asked for a count but sometimes answers with the list
+        # of claims itself; accept either rather than failing the whole run.
+        return len(value) if isinstance(value, list) else int(value)
+
     def score(sample: dict) -> float:
-        total = sample[denominator_key]
-        return sample[numerator_key] / total if total else 1.0
+        block = sample[section]
+        total = _count(block["total"])
+        return _count(block[numerator]) / total if total else 1.0
 
     return score
 
 
 def _score_faithfulness(
     client: Anthropic, explanation: str, chunks: list[dict], repeats: int = JUDGE_REPEATS
-) -> dict | None:
+) -> tuple[dict, dict] | tuple[None, None]:
+    """Returns (faithfulness, inference_discipline).
+
+    Both come from one judge call: faithfulness is whether factual claims are
+    supported, inference discipline is whether the causal reading follows from
+    those facts. Splitting them matters because explaining *why* a stock moved
+    is inherently inferential - an 8-K never says it - so scoring inference as
+    if it were an unsupported fact puts a permanent ceiling on the metric.
+    """
     if not chunks:
-        return None
+        return None, None
     context = "\n\n---\n\n".join(c["text"] for c in chunks)
-    return _judge(
+    samples = _judge_samples(
         client,
         FAITHFULNESS_JUDGE_SYSTEM,
         f"Explanation:\n{explanation}\n\nSource excerpts:\n{context}",
-        _ratio("supported_claims", "total_claims"),
         repeats,
+    )
+    return (
+        _summarize(samples, _ratio("facts", "supported")),
+        _summarize(samples, _ratio("inferences", "grounded")),
     )
 
 
@@ -144,13 +179,13 @@ def _score_correctness(
     if not key_facts:
         return None
     facts_block = "\n".join(f"- {f}" for f in key_facts)
-    return _judge(
+    samples = _judge_samples(
         client,
         CORRECTNESS_JUDGE_SYSTEM,
         f"Explanation:\n{explanation}\n\nKnown key facts:\n{facts_block}",
-        _ratio("covered_facts", "total_facts"),
         repeats,
     )
+    return _summarize(samples, _ratio("coverage", "covered"))
 
 
 def _score_retrieval(results: list[dict], meta: dict) -> dict | None:
@@ -191,9 +226,11 @@ def run_fixture(
     gt = meta["ground_truth"]
     honesty_correct = outcome["catalyst_found"] == gt["catalyst_present"]
 
-    faithfulness = correctness = None
+    faithfulness = inference = correctness = None
     if outcome["catalyst_found"]:
-        faithfulness = _score_faithfulness(client, outcome["explanation"], results, judge_repeats)
+        faithfulness, inference = _score_faithfulness(
+            client, outcome["explanation"], results, judge_repeats
+        )
         correctness = _score_correctness(
             client, outcome["explanation"], gt.get("key_facts_from_filing", []), judge_repeats
         )
@@ -207,6 +244,7 @@ def run_fixture(
         "explanation": outcome["explanation"],
         "retrieval": _score_retrieval(results, meta),
         "faithfulness": faithfulness,
+        "inference_discipline": inference,
         "correctness": correctness,
     }
 
@@ -248,6 +286,7 @@ def evaluate_fixture(
         "honesty_correct": all(r["honesty_correct"] for r in runs_out),
         "honesty_rate": statistics.mean([r["honesty_correct"] for r in runs_out]),
         "faithfulness": _agg("faithfulness"),
+        "inference_discipline": _agg("inference_discipline"),
         "correctness": _agg("correctness"),
     }
 
@@ -269,6 +308,9 @@ def summarize(results: list[dict]) -> dict:
         "confusion_matrix": confusion,
         "avg_retrieval_recall": _avg([r["retrieval"]["recall"] for r in results if r["retrieval"]]),
         "avg_faithfulness": _avg([r["faithfulness"]["score"] for r in results if r["faithfulness"]]),
+        "avg_inference_discipline": _avg(
+            [r["inference_discipline"]["score"] for r in results if r["inference_discipline"]]
+        ),
         "avg_correctness": _avg([r["correctness"]["score"] for r in results if r["correctness"]]),
     }
 
@@ -319,7 +361,9 @@ def main() -> None:
         if r["retrieval"]:
             print(f"  retrieval recall: {r['retrieval']['recall']:.2f}  {r['retrieval']['retrieved_roles']}")
         if r["faithfulness"]:
-            print(_format_judged("faithfulness", r["faithfulness"]))
+            print(_format_judged("faithfulness (facts grounded)", r["faithfulness"]))
+        if r["inference_discipline"]:
+            print(_format_judged("inference discipline", r["inference_discipline"]))
         if r["correctness"]:
             print(_format_judged("correctness", r["correctness"]))
 
@@ -330,7 +374,8 @@ def main() -> None:
     print(f"Confusion matrix: {summary['confusion_matrix']}")
     for label, key in [
         ("Avg retrieval recall", "avg_retrieval_recall"),
-        ("Avg faithfulness", "avg_faithfulness"),
+        ("Avg faithfulness (facts grounded)", "avg_faithfulness"),
+        ("Avg inference discipline", "avg_inference_discipline"),
         ("Avg correctness", "avg_correctness"),
     ]:
         if summary[key] is not None:
