@@ -1,3 +1,6 @@
+# Local full stack. `docker compose up db` alone is enough for running the
+# Python code on the host, which is how the pipeline is normally developed;
+# the other services exist so the deployed topology can be exercised locally.
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -15,6 +18,48 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api:
+    build: .
+    environment: &python_env
+      DATABASE_URL: postgresql://mshn:mshn@db:5432/mshn
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
+      EDGAR_USER_AGENT: ${EDGAR_USER_AGENT}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The two loops run on separate clocks - see the architecture notes in
+  # run_ingest.py and run_watch.py. Same image as the API.
+  ingest:
+    build: .
+    environment: *python_env
+    command: python run_ingest.py
+    depends_on:
+      db:
+        condition: service_healthy
+
+  watch:
+    build: .
+    environment: *python_env
+    command: python run_watch.py
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:

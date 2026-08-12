@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.cache/
+vector_store/
+web/
+.env
+fixtures/**/*.htm
