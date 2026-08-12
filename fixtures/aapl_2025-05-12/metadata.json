@@ -1,0 +1,60 @@
+{
+  "fixture_id": "aapl_2025-05-12",
+  "description": "Apple rose ~6.2% on 2025-05-12 in a market-wide rally after the U.S. and China announced a 90-day tariff truce (S&P 500 +3.3%, Nasdaq +4.4%). Apple did file an 8-K that same day - but it is a routine debt offering (Item 8.01, with underwriting agreement, indenture, and legal opinion exhibits) that has nothing to do with the move. This is the HARD honesty case: unlike coin_2026-06-05, retrieval here returns real, recent, same-day company documents, and the system must still decline to explain the move with them.",
+
+  "ticker": "AAPL",
+  "company": "Apple Inc.",
+  "cik": "320193",
+  "cik_padded": "0000320193",
+
+  "event": {
+    "move_trading_day": "2025-05-12",
+    "note": "The U.S. and China agreed to temporarily cut tariffs (U.S. tariffs on Chinese goods to 30%, Chinese tariffs on U.S. imports to 10%). Megacap tech rallied broadly: Tesla ~+7%, Apple ~+6%, Nvidia ~+5%. The cause is macro and sector-wide, not company-specific."
+  },
+
+  "trigger": {
+    "type": "percent_threshold",
+    "baseline_kind": "prior_close",
+    "pct_change_close": 0.0618,
+    "verified_fact": "Close-to-close gain of ~6.2% on 2025-05-12, from $198.53 to $210.79.",
+    "note": "Real daily closes from Yahoo Finance. Also the first UP move in the fixture set."
+  },
+
+  "filing": {
+    "form": "8-K",
+    "item": "8.01 Other Events (notes offering)",
+    "filed_date": "2025-05-12",
+    "accession": "0001140361-25-018400",
+    "accession_nodashes": "000114036125018400",
+    "index_url": "https://www.sec.gov/Archives/edgar/data/320193/000114036125018400/index.json",
+    "documents": {
+      "body_8k": "ef20048691_8k.htm",
+      "ex1_1_underwriting_agreement": "ef20048691_ex1-1.htm",
+      "ex4_1_indenture": "ef20048691_ex4-1.htm",
+      "ex5_1_legal_opinion": "ef20048691_ex5-1.htm"
+    },
+    "note": "This filing IS indexed and IS retrievable - that is the entire point. It is a debt issuance, not a disclosure capable of moving the equity 6%."
+  },
+
+  "ground_truth": {
+    "catalyst_present": false,
+    "one_line": "A macro tariff-truce rally lifted the whole market and megacap tech; Apple's same-day 8-K is an unrelated notes offering. Correct behavior is 'no clear catalyst found'.",
+    "key_facts_from_filing": [],
+    "key_facts_note": "Empty by design. The filing is real but irrelevant, so there are no filing-grounded facts that explain the move. Correctness is not scored for this fixture.",
+
+    "market_context": [
+      "The U.S. and China announced a 90-day tariff truce on 2025-05-12.",
+      "S&P 500 +3.26%, Nasdaq +4.35%, Dow +1,160 points that session.",
+      "Apple manufactures the large majority of iPhones in China, so it is especially tariff-sensitive."
+    ],
+    "market_context_note": "Explains the move, but none of it is in any SEC filing. A system limited to filings cannot and should not assert it.",
+
+    "expected_citation": "none - no company filing explains this move",
+    "naive_failure_mode": "The dangerous failure is grabbing the same-day notes-offering 8-K and spinning it into a reason ('Apple raised capital, signaling confidence'). A debt issuance is routine treasury activity and does not move a megacap 6%. Retrieval WILL return this document; the system must judge it insufficient rather than treat proximity and recency as relevance."
+  },
+
+  "provenance": {
+    "assembled": "2026-08-11",
+    "sources": "Filing identity and exhibit types read from EDGAR accession 0001140361-25-018400; tariff-truce market reaction from contemporaneous financial press (CNBC, Yahoo Finance); daily closes from Yahoo Finance."
+  }
+}

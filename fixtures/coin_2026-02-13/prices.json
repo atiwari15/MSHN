@@ -1,0 +1,19 @@
+{
+  "ticker": "COIN",
+  "series_kind": "daily_close",
+  "prices_are_approximate": false,
+  "series": [
+    { "date": "2026-02-09", "close": 167.25 },
+    { "date": "2026-02-10", "close": 162.51 },
+    { "date": "2026-02-11", "close": 153.20 },
+    { "date": "2026-02-12", "close": 141.09 },
+    { "date": "2026-02-13", "close": 164.32 },
+    { "date": "2026-02-17", "close": 166.02 }
+  ],
+  "expected_trigger": {
+    "on_date": "2026-02-13",
+    "baseline": "2026-02-12 close",
+    "pct_change": 0.1646,
+    "should_fire_at_threshold": 0.03
+  }
+}

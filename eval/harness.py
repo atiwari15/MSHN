@@ -190,14 +190,25 @@ def _score_correctness(
 
 def _score_retrieval(results: list[dict], meta: dict) -> dict | None:
     filing = meta.get("filing")
-    if not filing:
+    # Only meaningful when a filing genuinely explains the move. For a
+    # catalyst-absent fixture a filing may still be indexed (see
+    # aapl_2025-05-12), but retrieving it is not a success - the desired
+    # behavior there is to judge it insufficient, which honesty scores.
+    if not filing or not meta["ground_truth"]["catalyst_present"]:
         return None
+    # Only chunks from THIS fixture's filing count. Roles collide across
+    # filings (every 8-K has a "body_8k"), so matching on role alone scored
+    # a hit when retrieval had actually surfaced a different, wrong filing.
+    fixture_id = meta["fixture_id"]
     expected_roles = set(filing["documents"].keys())
-    retrieved_roles = {r["metadata"]["doc_role"] for r in results}
+    from_this_filing = [r for r in results if r["metadata"].get("source_id") == fixture_id]
+    retrieved_roles = {r["metadata"]["doc_role"] for r in from_this_filing}
     hit = expected_roles & retrieved_roles
     return {
         "expected_roles": sorted(expected_roles),
         "retrieved_roles": sorted(retrieved_roles),
+        "chunks_from_correct_filing": len(from_this_filing),
+        "chunks_retrieved": len(results),
         "recall": len(hit) / len(expected_roles) if expected_roles else 1.0,
     }
 
@@ -359,7 +370,11 @@ def main() -> None:
             f"  honesty_correct={r['honesty_correct']}"
         )
         if r["retrieval"]:
-            print(f"  retrieval recall: {r['retrieval']['recall']:.2f}  {r['retrieval']['retrieved_roles']}")
+            ret = r["retrieval"]
+            print(
+                f"  retrieval recall: {ret['recall']:.2f}  {ret['retrieved_roles']}"
+                f"  ({ret['chunks_from_correct_filing']}/{ret['chunks_retrieved']} chunks from the right filing)"
+            )
         if r["faithfulness"]:
             print(_format_judged("faithfulness (facts grounded)", r["faithfulness"]))
         if r["inference_discipline"]:

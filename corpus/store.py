@@ -121,25 +121,38 @@ def query(
     # would be sent as double precision[] and match no distance operator.
     query_vector = Vector(embed_text(query_text))
 
+    # Candidates are gathered on BOTH axes, then re-ranked. Selecting by
+    # similarity alone would let a large, wordy older filing crowd out a
+    # short recent one before the recency weight is ever applied - the
+    # re-rank can only reorder what the candidate query returned. A terse
+    # 8-K ("we now need an export license") scores low against an
+    # earnings-shaped query even when it is the actual catalyst, so the
+    # most recent filings are always pulled in as candidates too.
+    #
+    # filed_date <= as_of in both: a filing that postdates the move being
+    # explained can never be the cited cause of it.
+    select = """
+        SELECT c.chunk_key, c.text, c.doc_role, c.doc_name, c.chunk_index,
+               c.filed_date, f.source_id, c.embedding <=> %s AS distance
+        FROM chunks c JOIN filings f ON f.id = c.filing_id
+        WHERE c.ticker = %s AND c.filed_date <= %s
+    """
+    rows: dict[str, tuple] = {}
     with conn.cursor() as cur:
         cur.execute(
-            """
-            SELECT chunk_key, text, doc_role, doc_name, chunk_index,
-                   filed_date, embedding <=> %s AS distance
-            FROM chunks
-            -- filed_date <= as_of: a filing that postdates the move being
-            -- explained can never be the cited cause of it, even if it's
-            -- semantically similar.
-            WHERE ticker = %s AND filed_date <= %s
-            ORDER BY embedding <=> %s
-            LIMIT %s
-            """,
+            select + " ORDER BY c.embedding <=> %s LIMIT %s",
             (query_vector, ticker, as_of, query_vector, overfetch),
         )
-        rows = cur.fetchall()
+        rows.update({r[0]: r for r in cur.fetchall()})
+
+        cur.execute(
+            select + " ORDER BY c.filed_date DESC, c.chunk_index LIMIT %s",
+            (query_vector, ticker, as_of, overfetch),
+        )
+        rows.update({r[0]: r for r in cur.fetchall()})
 
     scored = []
-    for chunk_key, text, doc_role, doc_name, chunk_index, filed_date, distance in rows:
+    for chunk_key, text, doc_role, doc_name, chunk_index, filed_date, source_id, distance in rows.values():
         similarity = 1.0 - float(distance)  # cosine distance -> similarity
         age = max((as_of - filed_date).days, 0)
         recency_weight = math.exp(-age / half_life_days)
@@ -152,6 +165,11 @@ def query(
                     "doc_name": doc_name,
                     "chunk_index": chunk_index,
                     "filed_date": filed_date.isoformat(),
+                    # Identifies WHICH filing a chunk came from. doc_role
+                    # alone collides across filings - two 8-Ks both have a
+                    # "body_8k" - so scoring retrieval on roles only would
+                    # count the wrong filing as a hit.
+                    "source_id": source_id,
                     "ticker": ticker,
                 },
                 "similarity": similarity,

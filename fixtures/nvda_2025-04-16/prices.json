@@ -1,0 +1,19 @@
+{
+  "ticker": "NVDA",
+  "series_kind": "daily_close",
+  "prices_are_approximate": false,
+  "series": [
+    { "date": "2025-04-10", "close": 107.57 },
+    { "date": "2025-04-11", "close": 110.93 },
+    { "date": "2025-04-14", "close": 110.71 },
+    { "date": "2025-04-15", "close": 112.20 },
+    { "date": "2025-04-16", "close": 104.49 },
+    { "date": "2025-04-17", "close": 101.49 }
+  ],
+  "expected_trigger": {
+    "on_date": "2025-04-16",
+    "baseline": "2025-04-15 close",
+    "pct_change": -0.0687,
+    "should_fire_at_threshold": 0.03
+  }
+}

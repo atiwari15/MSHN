@@ -1,0 +1,62 @@
+{
+  "fixture_id": "nvda_2025-04-16",
+  "description": "NVIDIA fell ~6.9% on 2025-04-16 after disclosing, in an Item 8.01 8-K, that the U.S. government now requires a license to export its H20 chips to China - and that Q1 FY2026 results would include up to ~$5.5B of related charges. A non-earnings catalyst: the explanatory text is a short regulatory disclosure in the 8-K body, with no press-release exhibit to lean on.",
+
+  "ticker": "NVDA",
+  "company": "NVIDIA Corporation",
+  "cik": "1045810",
+  "cik_padded": "0001045810",
+
+  "event": {
+    "disclosure_datetime": "2025-04-15T16:30:00-04:00",
+    "release_timing": "after market close (AMC)",
+    "move_trading_day": "2025-04-16"
+  },
+
+  "trigger": {
+    "type": "percent_threshold",
+    "baseline_kind": "prior_close",
+    "pct_change_close": -0.0687,
+    "verified_fact": "Close-to-close decline of ~6.9% on 2025-04-16, from $112.20 to $104.49.",
+    "note": "Real daily closes from Yahoo Finance."
+  },
+
+  "filing": {
+    "form": "8-K",
+    "item": "8.01 Other Events",
+    "filed_date": "2025-04-15",
+    "accession": "0001045810-25-000082",
+    "accession_nodashes": "000104581025000082",
+    "index_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000082/index.json",
+    "documents": {
+      "body_8k": "nvda-20250409.htm"
+    },
+    "note": "Body-only filing - no exhibits. This is deliberately different in shape from the earnings fixtures, where the substance lives in EX-99 exhibits: here retrieval has to work against one short regulatory disclosure."
+  },
+
+  "ground_truth": {
+    "catalyst_present": true,
+    "one_line": "A U.S. export-license requirement for H20 chips to China, disclosed the prior evening, carrying up to ~$5.5B of charges in the current quarter.",
+    "key_facts_from_filing": [
+      "On April 9, 2025 the U.S. government informed NVIDIA that exporting H20 integrated circuits to China (including Hong Kong and Macau) and D:5 countries now requires a license.",
+      "On April 14, 2025 the U.S. government said the license requirement will be in effect for the indefinite future.",
+      "Q1 FY2026 results are expected to include up to approximately $5.5 billion of charges for H20 inventory, purchase commitments, and related reserves.",
+      "The stated rationale is the risk that covered products may be used in, or diverted to, a supercomputer in China."
+    ],
+    "key_facts_note": "All four are stated directly in the 8-K body.",
+
+    "market_context": [
+      "The disclosure landed during a broader drawdown in AI-hardware names.",
+      "China was widely understood to be a material share of data-center demand."
+    ],
+    "market_context_note": "Not in the filing; excluded from the correctness score.",
+
+    "expected_citation": "The 8-K body (body_8k). There are no exhibits in this filing.",
+    "naive_failure_mode": "A system tuned to earnings language may retrieve poorly here, since the filing contains no revenue or margin figures - only a regulatory disclosure and a single charge estimate. Failing to connect an export restriction to a price decline, or reaching for unrelated earnings material, would both be wrong."
+  },
+
+  "provenance": {
+    "assembled": "2026-08-11",
+    "sources": "Filing text read directly from EDGAR accession 0001045810-25-000082; daily closes from Yahoo Finance."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "ticker": "AAPL",
+  "series_kind": "daily_close",
+  "prices_are_approximate": false,
+  "series": [
+    { "date": "2025-05-06", "close": 198.51 },
+    { "date": "2025-05-07", "close": 196.25 },
+    { "date": "2025-05-08", "close": 197.49 },
+    { "date": "2025-05-09", "close": 198.53 },
+    { "date": "2025-05-12", "close": 210.79 },
+    { "date": "2025-05-13", "close": 212.93 }
+  ],
+  "expected_trigger": {
+    "on_date": "2025-05-12",
+    "baseline": "2025-05-09 close",
+    "pct_change": 0.0618,
+    "should_fire_at_threshold": 0.03
+  }
+}

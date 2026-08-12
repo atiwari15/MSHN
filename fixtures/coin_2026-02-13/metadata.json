@@ -1,0 +1,63 @@
+{
+  "fixture_id": "coin_2026-02-13",
+  "description": "Coinbase rose ~16.5% on 2026-02-13, the session after its Q4'25 shareholder letter was furnished on an Item 2.02 8-K. The inverse of the NVDA trap: the headline quarter got WORSE sequentially - total revenue $1.8B down 5% Q/Q, transaction revenue down 6% Q/Q, opex up 9% Q/Q - yet the stock rallied hard. A naive reading of the numbers alone points the wrong direction.",
+
+  "ticker": "COIN",
+  "company": "Coinbase Global, Inc.",
+  "cik": "1679788",
+  "cik_padded": "0001679788",
+
+  "event": {
+    "earnings_release_date": "2026-02-12",
+    "release_timing": "after market close (AMC)",
+    "move_trading_day": "2026-02-13"
+  },
+
+  "trigger": {
+    "type": "percent_threshold",
+    "baseline_kind": "prior_close",
+    "pct_change_close": 0.1646,
+    "verified_fact": "Close-to-close gain of ~16.5% on 2026-02-13, from $141.09 to $164.32.",
+    "note": "Real daily closes from Yahoo Finance. The stock had fallen for four straight sessions into the print."
+  },
+
+  "filing": {
+    "form": "8-K",
+    "item": "2.02 Results of Operations and Financial Condition",
+    "filed_date": "2026-02-12",
+    "accession": "0001679788-26-000011",
+    "accession_nodashes": "000167978826000011",
+    "index_url": "https://www.sec.gov/Archives/edgar/data/1679788/000167978826000011/index.json",
+    "documents": {
+      "body_8k": "coin-20260212.htm",
+      "ex99_1_shareholder_letter": "q425shareholderletter.htm"
+    }
+  },
+
+  "ground_truth": {
+    "catalyst_present": true,
+    "one_line": "The Q4'25 shareholder letter is unambiguously the catalyst, but the filing-grounded story is full-year strength and capital returns, not the sequentially weaker quarter.",
+    "key_facts_from_filing": [
+      "Q4 total revenue was $1.8 billion, down 5% Q/Q.",
+      "Q4 transaction revenue was $983 million, down 6% Q/Q; subscription and services revenue was $727 million, down 3% Q/Q.",
+      "Q4 net income was $178 million and Adjusted EBITDA was $566 million.",
+      "Full-year 2025 total revenue increased 9% Y/Y.",
+      "Coinbase ended 2025 with $11.3 billion in cash and cash equivalents and repurchased $1.7 billion of Class A common stock; fully diluted weighted average share count fell 8% Q/Q to 268 million."
+    ],
+    "key_facts_note": "All stated in the Q4'25 shareholder letter (EX-99.1).",
+
+    "market_context": [
+      "The stock had already fallen four consecutive sessions into the print, so positioning going in was defensive.",
+      "The scale of the rally implies results landed better than the market was positioned for."
+    ],
+    "market_context_note": "Requires knowledge of expectations and positioning, which the filing does not contain. Excluded from correctness.",
+
+    "expected_citation": "Exhibit 99.1 shareholder letter (ex99_1_shareholder_letter), and optionally the 8-K body.",
+    "naive_failure_mode": "A system that reads only the sequential headline figures sees revenue down, transaction revenue down, and opex up, and concludes the stock should have fallen - or declares no catalyst. The correct behavior is to identify the earnings release as the catalyst, ground the positive case in what the filing actually supports (full-year revenue growth, $11.3B cash, $1.7B buyback, share count down 8%), and be honest that the filing alone does not fully account for a 16.5% move."
+  },
+
+  "provenance": {
+    "assembled": "2026-08-11",
+    "sources": "Figures read directly from the Q4'25 shareholder letter in EDGAR accession 0001679788-26-000011; daily closes from Yahoo Finance."
+  }
+}
