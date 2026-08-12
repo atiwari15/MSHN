@@ -2,6 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "mshn-api",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["app:app", "--port", "8000", "--host", "127.0.0.1", "--reload"],
+      "port": 8000
+    },
+    {
+      "name": "mshn-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "web"],
+      "port": 3000
+    },
+    {
       "name": "mshn-ui",
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "streamlit_app.py", "--server.port", "8501", "--server.headless", "true"],

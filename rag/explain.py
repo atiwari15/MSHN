@@ -58,41 +58,105 @@ def _format_context(chunks: list[dict]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
+def _no_catalyst_result() -> dict:
+    # No LLM call at all - the honest answer is free.
+    return {
+        "catalyst_found": False,
+        "explanation": NO_CATALYST_MESSAGE,
+        "citations": [],
+        "model": None,
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+
+
+def _build_prompt(trigger: TriggerEvent, chunks: list[dict]) -> str:
+    direction = "fell" if trigger.pct_change < 0 else "rose"
+    return (
+        f"{trigger.ticker} stock {direction} {abs(trigger.pct_change):.1%} on {trigger.as_of}.\n\n"
+        f"Retrieved filing excerpts:\n\n{_format_context(chunks)}"
+    )
+
+
+def _finalize(text: str, chunks: list[dict]) -> tuple[bool, list[str]]:
+    """Citations are the roles the explanation actually cites, not every
+    role that happened to be retrieved.
+
+    Retrieval deliberately over-fetches, so the candidate set routinely
+    includes documents the answer never uses - an unrelated older filing
+    pulled in at a near-zero score would otherwise be reported as a source.
+    """
+    catalyst_found = NO_CATALYST_MESSAGE.lower() not in text.lower()
+    if not catalyst_found:
+        return False, []
+
+    retrieved_roles = {c["metadata"]["doc_role"] for c in chunks}
+    cited = sorted(role for role in retrieved_roles if role in text)
+    # If the model cited nothing parseable, fall back to the roles that
+    # actually carried weight rather than claiming all of them.
+    if not cited:
+        top_score = max((c["score"] for c in chunks), default=0.0)
+        cited = sorted(
+            {c["metadata"]["doc_role"] for c in chunks if c["score"] >= top_score / 2}
+        )
+    return True, cited
+
+
+def explain_stream(trigger: TriggerEvent, chunks: list[dict], client: Anthropic | None = None):
+    """Same contract as explain(), but yields text deltas as they arrive.
+
+    Yields ("delta", str) while generating and finally ("result", dict) with
+    the identical payload explain() returns, so the caller can persist it
+    with the same code path.
+    """
+    if not chunks:
+        yield "result", _no_catalyst_result()
+        return
+
+    client = client or Anthropic()
+    parts: list[str] = []
+    with client.messages.stream(
+        model=DEFAULT_MODEL,
+        max_tokens=MAX_TOKENS,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": _build_prompt(trigger, chunks)}],
+    ) as stream:
+        for event in stream.text_stream:
+            parts.append(event)
+            yield "delta", event
+        final = stream.get_final_message()
+
+    text = "".join(parts).strip()
+    catalyst_found, citations = _finalize(text, chunks)
+    yield "result", {
+        "catalyst_found": catalyst_found,
+        "explanation": text,
+        "citations": citations,
+        "model": DEFAULT_MODEL,
+        "input_tokens": final.usage.input_tokens,
+        "output_tokens": final.usage.output_tokens,
+    }
+
+
 def explain(trigger: TriggerEvent, chunks: list[dict], client: Anthropic | None = None) -> dict:
     """Produce a grounded, cited explanation for a trigger event, or the
     honest 'no clear catalyst found' fallback when there's nothing to cite.
     """
     if not chunks:
-        # No LLM call at all - the honest answer is free.
-        return {
-            "catalyst_found": False,
-            "explanation": NO_CATALYST_MESSAGE,
-            "citations": [],
-            "model": None,
-            "input_tokens": 0,
-            "output_tokens": 0,
-        }
+        return _no_catalyst_result()
 
     client = client or Anthropic()
-    direction = "fell" if trigger.pct_change < 0 else "rose"
-    user_prompt = (
-        f"{trigger.ticker} stock {direction} {abs(trigger.pct_change):.1%} on {trigger.as_of}.\n\n"
-        f"Retrieved filing excerpts:\n\n{_format_context(chunks)}"
-    )
-
     response = client.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=MAX_TOKENS,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[{"role": "user", "content": _build_prompt(trigger, chunks)}],
     )
     # Responses may lead with non-text blocks (e.g. thinking), so take the
     # first block that actually carries text rather than assuming index 0.
     text = next(block.text for block in response.content if block.type == "text").strip()
 
-    catalyst_found = NO_CATALYST_MESSAGE.lower() not in text.lower()
-    citations = sorted({c["metadata"]["doc_role"] for c in chunks}) if catalyst_found else []
-
+    catalyst_found, citations = _finalize(text, chunks)
     return {
         "catalyst_found": catalyst_found,
         "explanation": text,
