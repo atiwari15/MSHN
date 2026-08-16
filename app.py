@@ -43,10 +43,17 @@ ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
+# Vercel gives every preview deploy a fresh randomised hostname, so an exact
+# origin list can only ever cover the production domain. A regex is the only
+# way previews can talk to the same API. Unset by default - it stays opt-in
+# because a sloppy pattern here is what turns CORS into a security hole.
+ALLOWED_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX") or None
+
 app = FastAPI(title="MSHN", description="Market anomaly explainer", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

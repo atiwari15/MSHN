@@ -13,5 +13,9 @@ vector_store/
 chroma_data/
 qdrant_data/
 
-# downloaded filing documents (reproducible via fetch_filing.py / edgar client)
-fixtures/**/*.htm
+# Fixture filings are committed deliberately. They are immutable public SEC
+# documents totalling ~2.5 MB, and the deployed image is built from git - so
+# leaving them out shipped fixtures with metadata but no documents, breaking
+# /api/fixtures/{id}/explain, which is the demo path. Committing them keeps
+# the build hermetic instead of making every image build hit EDGAR.
+# Re-fetch locally with: python fixtures/fetch.py

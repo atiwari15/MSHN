@@ -6,4 +6,5 @@ __pycache__/
 vector_store/
 web/
 .env
-fixtures/**/*.htm
+# Fixture filings are NOT excluded - the API serves them at
+# /api/fixtures/{id}/explain. See the note in .gitignore.

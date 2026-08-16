@@ -1,3 +1,12 @@
+# Runtime dependencies for the API and both loops - this is what the
+# Dockerfile installs, so anything imported by app.py, run_ingest.py or
+# run_watch.py must be declared here explicitly. fastapi and uvicorn were
+# previously only present because they happened to be installed locally;
+# a clean resolve did not include fastapi and the API container died on
+# import. Never rely on a transitive dependency for a direct import.
+fastapi
+uvicorn[standard]
+
 chromadb            # retained for its bundled local ONNX embedding model
 psycopg[binary]
 pgvector
@@ -5,5 +14,3 @@ anthropic
 beautifulsoup4
 lxml
 python-dotenv
-streamlit
-pandas

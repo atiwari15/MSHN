@@ -1,0 +1,10 @@
+# Local-only extras, deliberately kept out of the deployed image.
+#
+# streamlit and pandas are imported by streamlit_app.py alone - the demo
+# that web/ superseded. Nothing in the API, the loops, or eval/ touches
+# them, and together they pull in pyarrow, pydeck and friends for roughly
+# 110 MB of image weight that never gets executed in production.
+-r requirements.txt
+
+streamlit
+pandas
