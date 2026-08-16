@@ -48,12 +48,31 @@ first and setting CORS last:
 ### 1. Railway - database
 
 - New project, add a **Postgres** service.
-- Copy its `DATABASE_URL`.
 
-pgvector must be available. You do not need to check separately: step 2's
-schema apply begins with `CREATE EXTENSION IF NOT EXISTS vector` and will
-fail loudly if it is missing. If it does fail, provision the database on
-**Neon** instead (pgvector is standard there) and use its connection string.
+Railway exposes two connection strings for it, and they are not
+interchangeable:
+
+| Variable | Host | Reachable from |
+|---|---|---|
+| `DATABASE_URL` | `postgres.railway.internal` | Inside Railway only (private network) |
+| `DATABASE_PUBLIC_URL` | `*.proxy.rlwy.net` | Anywhere, including your machine |
+
+Step 2 runs from your laptop, so it needs `DATABASE_PUBLIC_URL`. Step 3 runs
+inside Railway, so it uses the internal one - faster, no egress cost, and
+the database stays off the public internet. Using the internal URL from your
+machine fails on DNS resolution rather than silently writing somewhere
+unexpected, and `db/init.py` prints the host before it connects.
+
+pgvector must be available. You do not need to check separately: step 2
+probes `pg_available_extensions` before touching anything, and exits non-zero
+with a plain-English message if the server cannot offer the extension. If
+that happens, provision the database on **Neon** instead (pgvector is
+standard there) and re-run against its connection string.
+
+Note the distinction the probe draws. A Postgres build can *have* pgvector
+without it being *enabled* in a given database - the extension is per
+database, and a freshly provisioned one never has it. Step 2 enables it.
+Only "not available on this server at all" means you need a different host.
 
 ### 2. Apply the schema - once, from your machine
 
@@ -61,11 +80,29 @@ Managed Postgres does not run `db/schema.sql` for you; only the compose
 setup does, via `docker-entrypoint-initdb.d`. Without this the tables do
 not exist and every request fails.
 
+Activate the project venv first. A bare `python` may well be conda's base
+interpreter, which has none of this project's dependencies and fails on
+`import psycopg` before it ever reads `DATABASE_URL`:
+
 ```bash
-DATABASE_URL='<railway-postgres-url>' python -m db.init
+source .venv/bin/activate
+DATABASE_URL='<paste DATABASE_PUBLIC_URL here>' python -m db.init
+```
+
+Or bypass activation entirely by naming the interpreter:
+
+```bash
+DATABASE_URL='<paste DATABASE_PUBLIC_URL here>' .venv/bin/python -m db.init
 ```
 
 Expect: `ok - tables present: chunks, explanations, filings, triggers`.
+
+Set it inline on the command, not in `.env`. The local default is
+`localhost:5433` (`corpus/store.py`), which is what compose serves and what
+every local run should keep using; a `DATABASE_URL` line in `.env` would
+silently repoint the whole local workflow at production. Nothing overrides
+the inline value - `load_dotenv` leaves real environment variables alone,
+and `.env` does not define `DATABASE_URL` in the first place.
 
 Run this *before* starting the services, not from service startup - the API
 and both loops boot concurrently and racing `CREATE TABLE IF NOT EXISTS`
@@ -88,7 +125,7 @@ Environment variables - all three services need all of these:
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | Railway's Postgres reference variable |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` - a reference variable, so it tracks the database if it is ever recreated. Keys off whatever you named the Postgres service. The **internal** URL is correct here |
 | `ANTHROPIC_API_KEY` | from `.env` |
 | `FINNHUB_API_KEY` | from `.env` |
 | `EDGAR_USER_AGENT` | from `.env` - mandatory, EDGAR 403s without it |
