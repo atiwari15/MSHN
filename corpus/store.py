@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import os
+import urllib.parse
 
 import psycopg
 from pgvector import Vector
@@ -34,21 +35,40 @@ def _using_default_url() -> bool:
     return not os.environ.get("DATABASE_URL")
 
 
-def get_client(url: str | None = None) -> psycopg.Connection:
+def _is_loopback(url: str) -> bool:
     try:
-        conn = psycopg.connect(url or database_url(), autocommit=True)
+        return urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}
+    except ValueError:
+        return False
+
+
+def get_client(url: str | None = None) -> psycopg.Connection:
+    target = url or database_url()
+    try:
+        conn = psycopg.connect(target, autocommit=True)
     except psycopg.OperationalError as exc:
-        # Deployed, with DATABASE_URL missing, this silently dialled localhost
-        # and produced a wall of connection-refused tracebacks that said
-        # nothing about the actual cause. The fallback is worth keeping - it
-        # makes local development work with no configuration - but it should
-        # never be the thing a deployment discovers via a stack trace.
-        if url is None and _using_default_url():
+        # A refused loopback connection has two very different causes and the
+        # driver's traceback distinguishes neither: locally the database
+        # container simply is not up, and deployed it means DATABASE_URL is
+        # absent (so the dev default applied) or was copied verbatim from
+        # .env.example, which carries the compose URL. Both produced hundreds
+        # of connection-refused lines that never named the cause.
+        if _is_loopback(target):
+            parsed = urllib.parse.urlparse(target)
+            where = f"{parsed.hostname}:{parsed.port or 5432}"  # never the password
+            source = (
+                "DATABASE_URL is not set, so the local development default was used"
+                if url is None and _using_default_url()
+                else "DATABASE_URL points at a loopback address"
+            )
             raise RuntimeError(
-                "DATABASE_URL is not set, so the local development default "
-                f"({DEFAULT_DATABASE_URL}) was used - and refused the "
-                "connection. In a deployment this means the environment "
-                "variable is missing from the service."
+                f"{source} ({where}) and the connection was refused.\n"
+                "Locally this usually means the database is not running - "
+                "`docker compose up -d db`.\n"
+                "In a deployment it means DATABASE_URL is missing or still "
+                "holds a local address: inside a container, localhost is that "
+                "container, not your database. Point it at the managed "
+                "instance instead."
             ) from exc
         raise
     register_vector(conn)
