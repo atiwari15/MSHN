@@ -26,11 +26,31 @@ RECENCY_HALF_LIFE_DAYS = 21.0
 
 
 def database_url() -> str:
-    return os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return os.environ.get("DATABASE_URL") or DEFAULT_DATABASE_URL
+
+
+def _using_default_url() -> bool:
+    """Whether we fell back to the local dev URL rather than being told one."""
+    return not os.environ.get("DATABASE_URL")
 
 
 def get_client(url: str | None = None) -> psycopg.Connection:
-    conn = psycopg.connect(url or database_url(), autocommit=True)
+    try:
+        conn = psycopg.connect(url or database_url(), autocommit=True)
+    except psycopg.OperationalError as exc:
+        # Deployed, with DATABASE_URL missing, this silently dialled localhost
+        # and produced a wall of connection-refused tracebacks that said
+        # nothing about the actual cause. The fallback is worth keeping - it
+        # makes local development work with no configuration - but it should
+        # never be the thing a deployment discovers via a stack trace.
+        if url is None and _using_default_url():
+            raise RuntimeError(
+                "DATABASE_URL is not set, so the local development default "
+                f"({DEFAULT_DATABASE_URL}) was used - and refused the "
+                "connection. In a deployment this means the environment "
+                "variable is missing from the service."
+            ) from exc
+        raise
     register_vector(conn)
     return conn
 
