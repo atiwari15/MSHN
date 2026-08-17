@@ -108,6 +108,26 @@ Run this *before* starting the services, not from service startup - the API
 and both loops boot concurrently and racing `CREATE TABLE IF NOT EXISTS`
 against each other can deadlock.
 
+### 2b. Seed the fixtures - once, same connection string
+
+```bash
+DATABASE_URL='<paste DATABASE_PUBLIC_URL here>' .venv/bin/python -m fixtures.seed
+```
+
+The API indexes a fixture lazily on its first `/api/fixtures/{id}/explain`
+call. Locally that is imperceptible; on a small deployed instance the
+Coinbase Q4'25 shareholder letter (1.4 MB) takes roughly half a minute to
+chunk and embed. No browser waits that long, so the first click times out,
+retrieval runs against a corpus that is still filling, and the fixture that
+best demonstrates the system is the one that appears broken.
+
+Seeding moves that cost to provisioning time. It embeds only - no LLM call,
+no explanation generated, nothing billable - and is idempotent, since chunk
+keys derive from the fixture id.
+
+`coin_2026-06-05` is skipped by design: it has no filing, and retrieving
+nothing is the point of that fixture.
+
 ### 3. Railway - three services from this repo
 
 Each one: same repo, root `Dockerfile`, differing start command.

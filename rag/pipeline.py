@@ -14,6 +14,22 @@ from rag.retrieve import TriggerEvent, retrieve
 from state import get_explanation, record_trigger, save_explanation
 
 
+def _is_cacheable(retrieved: list) -> bool:
+    """Whether an outcome is worth storing against this trigger.
+
+    A verdict reached with no retrieved evidence is a statement about the
+    corpus, not about the move - and the corpus changes. Caching it makes an
+    unlucky moment permanent: a trigger that fires before ingest has indexed
+    the relevant filing, or a fixture explained while its documents are still
+    being embedded, gets "no clear catalyst found" written against it forever,
+    and even a forced regeneration rewrites the same miss while indexing is
+    incomplete. Skipping the save costs nothing - no LLM call was made to
+    produce it - and lets the answer correct itself once the corpus catches
+    up. Real explanations, the ones that actually cost tokens, still cache.
+    """
+    return bool(retrieved)
+
+
 def explain_move(
     conn,
     ticker: str,
@@ -43,7 +59,8 @@ def explain_move(
     retrieved = retrieve(conn, trigger)
     outcome = explain(trigger, retrieved, client=client)
 
-    save_explanation(conn, trigger_id, outcome, retrieved)
+    if _is_cacheable(retrieved):
+        save_explanation(conn, trigger_id, outcome, retrieved)
     return {**outcome, "trigger_id": trigger_id, "cached": False}
 
 
@@ -82,5 +99,6 @@ def explain_move_stream(
         if kind == "delta":
             yield kind, payload
         else:
-            save_explanation(conn, trigger_id, payload, retrieved)
+            if _is_cacheable(retrieved):
+                save_explanation(conn, trigger_id, payload, retrieved)
             yield "result", {**payload, "trigger_id": trigger_id, "cached": False}
